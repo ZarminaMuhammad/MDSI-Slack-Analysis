@@ -1,0 +1,334 @@
+---
+title: 'Slack Analysis: SQL, R and Python'
+author: "Zarmina"
+date: "21/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+MDSI Students have been using Slack since 2016 to chat with friends, collaborate with teammates, assist with troubleshooting, and share resources.
+
+Slack allows administrators to download chat log data for all public conversations on the MDSI Slack account (this excludes direct messages and private channels - your private messages remain private). In this task, a subset of the data available (full chat logs from the start of the MDSI Slack until March 2019) in a SQL database is provided for analysis.
+
+This data science task provide an end to end task using all three languages: 
+
++ SQL: creating a user_text_channel data set from users, messages and channels for further analysis.
++ R: For visualizations. A small part of text analytics is performed to identify the most occuring words for "MDSI_dam_aut_18" channel. Using R the message frequencies of all users as well as the users who are channel owners are plotted to identify the user with large number of text_messages, either owner or not?
++ Python: the data dimentionality, feature, feature types and statistical characteristics  for the user_text_channels data set is determined. Using python, the distribution of categorical feature (user_is_owner) across the dataset is also determined 
+
+# SQL
+Using SQL the datatables with in the slack data provided are extracted such as **channels**, **users**, **messages** and  **user_analysis**. A new dataset user_text_channel1 was created from these data tables through desired feature selection using inner joins, this dataset was used for furthr analysis in this project. The packages used to acces SQL using R are mentioned in the required libraries.
+
+## Required Libraries
+
+```{r}
+library(DBI)
+library(RPostgreSQL)
+library(RPostgres)
+library(dplyr)
+library(dbplyr)
+library(sqldf)
+
+```
+
+## Connecting to the database
+```{r}
+con <- dbConnect(RPostgres::Postgres(),
+                 host     = "mdsislack.clnutj7nhgyn.us-east-2.rds.amazonaws.com",
+                 port     =  5432, 
+                 user     = 'dsp2019',
+                 password = 'oZkK6vgRbvDK',
+                 dbname = 'mdsislack')
+con
+table_names<- dbListTables(con)
+table_names
+```
+
+### Extracting datatables from slack database (SQL)
+```{r}
+user_analysis<- dbGetQuery(con, "select* from user_analysis")
+#str(user_analysis)
+```
+
+
+```{r}
+# Users
+users <- dbGetQuery(con, "select * from users")
+#head(users)
+#str(users)
+users <- dbGetQuery(con, "select user_id, user_name, user_nickname, user_is_admin, user_is_owner from users")
+
+
+# Messages
+messages<- dbGetQuery(con, "select * from messages")
+#head(messages)
+#str(messages)
+messages<- dbGetQuery(con, "select user_id, channel_id, message_text from messages")
+
+
+
+# Channels
+channels<- dbGetQuery(con, "select * from channels")
+#head(channels)
+#str(channels)
+channels<- dbGetQuery(con, "select channel_id, channel_name,channel_creator, channel_topic from channels")
+
+```
+
+#### 1. Creating a User_messages dataset
+
+```{r}
+# Joing Users and messages
+user_messages <- "select
+                users.*
+              , messages.message_text
+              , messages.channel_id
+              from users
+                inner join messages
+                on users.user_id = messages.user_id"
+user_messages1<- dbGetQuery(con,user_messages)
+str(user_messages1)
+```
+
+#### 2. User_text_channel dataset (inner-join)
+
+```{r}
+# Joining User, messages and channels
+user_text_channel<- "select
+                    u.user_id, u.user_name,u.user_nickname, u.user_is_owner
+                    , m.message_text, m.channel_id
+                    ,c.channel_name, c.channel_topic
+                  from users as u 
+                    inner join messages as m
+                      on u.user_id = m.user_id
+                    inner join channels as c
+                     on m.channel_id = c.channel_id"
+user_text_channel1<-  dbGetQuery(con, user_text_channel)
+names(user_text_channel1)
+str(user_text_channel1)
+#View(user_text_channel1)
+
+```
+
+#### 3. Dataset for all users who are channel owners
+```{r}
+# Creating a dataframe of users who own channels
+library(sqldf)
+Channel_owner<- sqldf('SELECT user_id,user_nickname,user_is_owner, user_name,message_text, channel_id, channel_name, channel_topic
+ FROM user_text_channel1 ORDER BY user_name, channel_name',drv="SQLite")
+names(Channel_owner)
+str(Channel_owner)
+
+#View(Channel_owner)
+
+```
+
+```{r}
+# # Disconnect from the database
+dbDisconnect(con)
+```
+# Python analysis
+**reticulate** package is used to run python code in R-markdown
+```{r}
+library(reticulate)
+```
+
+```{python}
+import pandas as pd
+import numpy as np
+
+```
+
+## User_text_channel1 dataset: data dimensionality, feature names and feature types
+```{python}
+print(r.user_text_channel1.shape) # the datset has 28061 rows and 8 columns
+print(r.user_text_channel1.columns) # column names
+```
+
+
+```{python}
+r.user_text_channel1.head()
+
+print(r.user_text_channel1.info()) # general information about the features in the the dataset
+```
+**.info(): object** and **bool** are the data types of our features. We see that one feature is logical (bool)and the other 7 features are of type object. from .info(), we can also find if there are any missing values. Here, there are none because each column contains 28061 observations, the same number of rows we saw before with shape (determining the dimentionality).
+
+
+```{python}
+x= r.user_text_channel1.describe(include=['object', 'bool'])
+x
+```
+
+**The describe method shows basic statistical characteristics of each feature:** Number of non-missing values,(count), no of unique values, top (most occuring vaule- In this dataset Perry Stephenson is the most occuring name, with a high frequency of text messages).
+
+```{python}
+# Message count of all users from all channels
+message_cnt= r.user_text_channel1.groupby(['channel_name', 'user_name'])['user_name'].count()
+message_cnt.describe
+
+```
+
+Here the user_text_channel1 dataset has been used to determine the count of messages for each user with in a channel. **channel_name** and **user_name** have been selected, this gives a clear idea about the users who are freqently sending messages within the channel.
+
+For categorical boolean (type bool) features, value_counts method is used. Let’s have a look at the distribution of user_is_owner:
+
+
+```{python}
+r.user_text_channel1['user_is_owner'] = r.user_text_channel1['user_is_owner'].astype('bool')
+r.user_text_channel1['user_is_owner'].value_counts()
+
+```
+
+Of the total observations(rows), 6535 are from users who are channel owners (user_is_owner= TRUE).To calculate the proportion, normalize=True is passed to the to the value_counts function
+```{python}
+r.user_text_channel1['user_is_owner'].value_counts(normalize=True)
+```
+
+To determine the proportion of observations for users who are owners in our dataframe, **.mean()** is used
+
+```{python}
+
+r.user_text_channel1['user_is_owner'].mean()
+```
+
+23.28 % of the messages are from the users who are channel owners.
+
+# R visualizations
+
+## Visualization of channel DAM_18
+```{r echo=TRUE}
+# Visualization of course channels DAM & DSP
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+
+#get a subset of messages
+MDSI_messages <- user_text_channel1[, c("message_text","user_nickname", "channel_name")]
+
+
+# For DAM
+mdsi_DAM19_msgs <- sqldf("select * from MDSI_messages
+                                  where channel_name = 'mdsi_dam_aut_18'", drv="SQLite")
+#View(mdsi_DAM19_msgs)
+#get only messages
+DAM_messages <- mdsi_DAM19_msgs$message_text
+
+#convert the messages to corpus for text analysis 
+docs <- Corpus(VectorSource(DAM_messages))
+
+
+# Data Preprocessing
+
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x)) #a function to replace contents in the text
+docs <- tm_map(docs, content_transformer(tolower)) #convert the messages to lowercase
+docs <- tm_map(docs, removeNumbers)  #remove numbers
+docs <- tm_map(docs, removePunctuation) #remove punctuation
+docs <- tm_map(docs, stripWhitespace) #remove white space
+docs <- tm_map(docs, removeWords, stopwords('en')) #remove common stop words
+docs <- tm_map(docs,stemDocument) # stemming
+```
+
+### Word Cloud
+```{r}
+# stage the data
+# Create term document matrix\
+tdm <- TermDocumentMatrix(docs)   
+inspect(tdm)  
+
+#Create document-term matrix
+dtm <- DocumentTermMatrix(docs)
+inspect(dtm)
+
+# https://rpubs.com/williamsurles/316682
+tdm_m<- as.matrix(tdm)
+# Sum rows and frequency data frame
+tdm_term_freq <- rowSums(tdm_m)
+
+# Sort the tdm_words in descending order
+tdm_words <- sort(tdm_term_freq, decreasing = T)
+
+tdm_word_freqs <- data.frame(
+  term = names(tdm_words),
+  num = tdm_words
+)
+
+wordcloud(tdm_word_freqs$term, tdm_word_freqs$num,
+          max.words = 70, colors = c("grey80","darkgoldenrod1", "tomato"))
+
+# tdm_word_freqs%>% filter(num >90)%>% ggplot(aes(term, num)) +  geom_col() +   xlab(NULL) +  coord_flip()
+
+```
+
+The above figure represents the Wordcloud of terms from the messages used in MDSI-DAM-AUT-18 channel. The most occuring words in this group are "model", "data", "predict", "variable", "code" that provide some insights about the content of this group, however, further analysis such as bigrms, pairwise correlation would further clarify the relationship of the words within this groups (further text analytics for this channel is not performed in this assignment).
+
+### Determinig the message frequency of owner from channel_owner dataset
+```{r}
+library(ggplot2)
+library(dplyr)
+#Extract only user_nickname and messages text for analysis from the dataset
+owner <- Channel_owner[, c("user_name","user_is_owner","message_text")]
+owner1<- owner %>% filter(user_is_owner== TRUE)
+
+# Get the frequency of posts of each user (for wordcloud)
+# Note: For sqldf, we need to include the parameter drv to evaluate on our local datasets
+count_msgs <- sqldf("select user_name,
+                      count(1) as msg_frequency
+                    from owner1
+                    group by
+                      user_name", drv = "SQLite")
+
+
+count_msgs<- data.frame(count_msgs)
+
+count_msgs %>%
+  ggplot(aes(user_name, msg_frequency)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+```
+
+The above visualization shows the message frequency of users who are channel owners as well. The max message frequency is almost 2500 for **Perry Stephenson**, while the lowest is of **Shan**. the exact count of messages is calculated in python.
+
+### Message frequency (>500) of all users on MDSI_slack form user_text_channel1 dataset
+```{r}
+#Extract only user_name and messages text for analysis from the dataset user_text_channel
+message_freq <- user_text_channel1[, c("user_name","user_nickname","message_text")]
+
+# Get the frequency of posts of each user (for wordcloud)
+# Note: For sqldf, we need to include the parameter drv to evaluate on our local datasets
+all_users_msgs <- sqldf("select user_nickname,
+                      count(1) as msg_frequency
+                    from message_freq
+                    group by
+                      user_name", drv = "SQLite")
+
+# Create the wordcloud
+wordcloud(words = all_users_msgs$user_nickname, freq = all_users_msgs$msg_frequency,
+          min.freq = 3, max.words=100, random.order=FALSE, rot.per=0.25, 
+          colors=brewer.pal(8, "Dark2"))
+
+all_users_msgs<- data.frame(all_users_msgs)
+
+# the min message frequency is set at 500
+all_users_msgs  %>%  filter(msg_frequency >500)%>%
+  ggplot(aes(user_nickname, msg_frequency)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+
+```
+
+The wordcloud shows all the users within the user_text_channel1 dataset. The frequency plot(>500) determines the number of messages for each user (channel owner or not). This barplot shows that the users with user_nicknames **Perry** and **ajscriven** the highest messgae frequency. In comparison to the channel_owner barplot from channel_owner dataset, it is right to say that the users who are channel owners have the highest message frequency as compared to non owners. 
+
+# Reflection
+Using multiple programming tools for a project simultaneously was an impossible task for me to fulfill before this assignment. As using R, Python and SQL, altogether, I never thought it would be possible even. But, for a data scientist knowing the skill of this swtiching between languages is really important, as every language comes with its own benefits that could only be achieved if the sillset is known. For me, switching between R ans python was really difficult because of the different interface, but now I have learned how to use R, Python and SQL altogether in R. Also a new learning is how to load datasets in python created in R and Vice versa suing the prefix **r.** and **py.**.
+
+
+```{r}
+knitr::knit_exit()
+```
+
