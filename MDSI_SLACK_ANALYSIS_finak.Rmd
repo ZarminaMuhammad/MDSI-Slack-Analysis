@@ -16,9 +16,9 @@ Slack allows administrators to download chat log data for all public conversatio
 
 This data science task provide an end to end task using all three languages: 
 
-+ SQL: creating a user_text_channel data set from users, messages and channels for further analysis.
-+ R: For visualizations. A small part of text analytics is performed to identify the most occuring words for "MDSI_dam_aut_18" channel. Using R the message frequencies of all users as well as the users who are channel owners are plotted to identify the user with large number of text_messages, either owner or not?
-+ Python: the data dimentionality, feature, feature types and statistical characteristics  for the user_text_channels data set is determined. Using python, the distribution of categorical feature (user_is_owner) across the dataset is also determined 
+* **SQL:** creating a user_text_channel data set from users, messages and channels for further analysis.
+* **R:** For visualizations. A small part of text analytics is performed to identify the most occuring words for "MDSI_dam_aut_18" channel. Using R the message frequencies of all users as well as the users who are channel owners are plotted to identify the user with large number of text_messages, either owner or not?
+* **Python:** the data dimentionality, feature, feature types and statistical characteristics  for the user_text_channels data set is determined. Using python, the distribution of categorical feature (user_is_owner) across the dataset is also determined 
 
 # SQL
 Using SQL the datatables with in the slack data provided are extracted such as **channels**, **users**, **messages** and  **user_analysis**. A new dataset user_text_channel1 was created from these data tables through desired feature selection using inner joins, this dataset was used for furthr analysis in this project. The packages used to acces SQL using R are mentioned in the required libraries.
@@ -200,7 +200,7 @@ r.user_text_channel1['user_is_owner'].mean()
 # R visualizations
 
 ## Visualization of channel DAM_18
-```{r echo=TRUE}
+```{r visualization r-TEXT-MINING, echo=TRUE}
 # Visualization of course channels DAM & DSP
 library(tm)
 library(wordcloud)
@@ -233,7 +233,7 @@ docs <- tm_map(docs,stemDocument) # stemming
 ```
 
 ### Word Cloud
-```{r}
+```{r visualization-DAM}
 # stage the data
 # Create term document matrix\
 tdm <- TermDocumentMatrix(docs)   
@@ -266,7 +266,7 @@ wordcloud(tdm_word_freqs$term, tdm_word_freqs$num,
 The above figure represents the Wordcloud of terms from the messages used in MDSI-DAM-AUT-18 channel. The most occuring words in this group are "model", "data", "predict", "variable", "code" that provide some insights about the content of this group, however, further analysis such as bigrms, pairwise correlation would further clarify the relationship of the words within this groups (further text analytics for this channel is not performed in this assignment).
 
 ### Determinig the message frequency of owner from channel_owner dataset
-```{r}
+```{r msg_freq_user_owner}
 library(ggplot2)
 library(dplyr)
 #Extract only user_nickname and messages text for analysis from the dataset
@@ -294,7 +294,7 @@ count_msgs %>%
 The above visualization shows the message frequency of users who are channel owners as well. The max message frequency is almost 2500 for **Perry Stephenson**, while the lowest is of **Shan**. the exact count of messages is calculated in python.
 
 ### Message frequency (>500) of all users on MDSI_slack form user_text_channel1 dataset
-```{r}
+```{r visualization-all users}
 #Extract only user_name and messages text for analysis from the dataset user_text_channel
 message_freq <- user_text_channel1[, c("user_name","user_nickname","message_text")]
 
@@ -325,8 +325,7 @@ all_users_msgs  %>%  filter(msg_frequency >500)%>%
 The wordcloud shows all the users within the user_text_channel1 dataset. The frequency plot(>500) determines the number of messages for each user (channel owner or not). This barplot shows that the users with user_nicknames **Perry** and **ajscriven** the highest messgae frequency. In comparison to the channel_owner barplot from channel_owner dataset, it is right to say that the users who are channel owners have the highest message frequency as compared to non owners. 
 
 # Reflection
-Using multiple programming tools for a project simultaneously was an impossible task for me to fulfill before this assignment. As using R, Python and SQL, altogether, I never thought it would be possible even. But, for a data scientist knowing the skill of this swtiching between languages is really important, as every language comes with its own benefits that could only be achieved if the sillset is known. For me, switching between R ans python was really difficult because of the different interface, but now I have learned how to use R, Python and SQL altogether in R. Also a new learning is how to load datasets in python created in R and Vice versa suing the prefix **r.** and **py.**.
-
+Using multiple programming tools for a project simultaneously was an impossible task for me to fulfill before this assignment. As using R, Python and SQL, altogether, I never thought it would be possible even. But, for a data scientist knowing the skill of this swtiching between languages is really important, as every language comes with its own benefits that could only be achieved if the sillset is known. For me, switching between R ans python was really difficult because of the different interface, but now I have learned how to use R, Python and SQL altogether in R. Also a new learning is how to load datasets in python created in R and Vice versa suing the prefix **"r."** and **"py."**.
 
 ```{r}
 knitr::knit_exit()
